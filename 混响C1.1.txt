@@ -1,0 +1,105 @@
+/*人工混响程序*/
+#include<stdio.h>
+#include<math.h> 
+#define SIZE 145152 
+#define SIZE2 128
+int delays[4]={2191,2971,3253,3307};/*梳状滤波器参数*/
+float w[4]={0};
+float kp[4]={0};
+float Bp[4]={0};
+float beta[4]={0};
+float lp_d[4]={0};
+float y[SIZE2]={0};      /*数据输出数组*/
+short z[SIZE]={0};
+short h[SIZE]={0};
+float x[SIZE2]={0};     /*数据输入数组*/
+float inp[SIZE]={0};   
+float out[SIZE]={0};   
+float delaylines[4][3307]={{0},{0},{0},{0}};
+float apdelaylines[2][713]={{0},{0}};
+int   dl_p[4]={1,1,1,1};
+float temp_out[4][1]={0};
+int apdelays[2]={441,713};
+float apgains[2]={0.5,0.5};
+int ones[4]={1,1,1,1};
+
+void main()
+{
+float rt60=5.0;/*混响时间*/
+int fs=22050;  /*采样频率*/
+float max=0;
+float alpha=0.25;
+int   ap_dlp1=1;
+int   ap_dlp2=1;
+float  ap_out1=0;
+float ap_out2=0;
+static int i;
+static int j;
+long int a=0;
+long int b=0;
+FILE *fp; 
+FILE *fp2;
+fp=fopen("E:\\张健业\\test(1).pcm","rb");   /*音频文件路径*/
+for(i=0;i<SIZE;i++)
+{fread(&z[i],2,1,fp);                       /*读格式为pcm的音频文件*/
+}
+
+for(i=0;i<SIZE;i++)
+ { inp[i]=z[i]/32768.0;               /*数据归一化*/
+
+}
+
+for(i=0;i<4;i++)
+ {w[i]=(-3*delays[i])/(rt60*fs);
+  kp[i]=pow(10,w[i]);
+  Bp[i]=ones[i]-2/(1+pow(kp[i],(1-1/alpha)));
+  beta[i]=kp[i]*(1-Bp[i]);
+ }
+while(1)
+{
+for(i=0;i<SIZE2;i++)
+{ x[i]=inp[b];
+  b++;
+}
+ for(i=0;i<SIZE2;i++)
+{ 
+  for(j=0;j<4;j++)
+ {y[i]=y[i]+temp_out[j][0];
+  delaylines[j][dl_p[j]-1]=x[i]+temp_out[j][0];
+  dl_p[j]=(dl_p[j]+1)%delays[j]+1;
+  temp_out[j][0]=(delaylines[j][dl_p[j]-1]+Bp[j]*lp_d[j])*beta[j];
+  lp_d[j]=delaylines[j][dl_p[j]-1];
+  }
+   apdelaylines[0][ap_dlp1-1]=y[i]+ap_out1*apgains[0];
+   ap_dlp1=(ap_dlp1+1)%apdelays[0]+1;
+   ap_out1=apdelaylines[0][ap_dlp1-1]-apgains[0]*y[i];
+   apdelaylines[1][ap_dlp2-1]=y[i]+ap_out2*apgains[1];
+   ap_dlp2=(ap_dlp2+1)%apdelays[1]+1;
+   ap_out2=apdelaylines[1][ap_dlp2-1]-apgains[1]*y[i];
+   y[i]=ap_out2+x[i];
+   out[a]=y[i];
+  
+   y[i]=0;
+   a++;
+} 
+  
+ if(a==145152)
+	break;
+}
+max=out[0];
+ for(i=0;i<SIZE-1;i++)              /*求最大值函数*/
+ {if(max<out[i+1])
+  max=out[i+1];
+ }
+ 
+for(i=0;i<SIZE;i++)
+{    out[i]=out[i]*0.8/max;
+	 h[i]=out[i]*32768;
+}
+
+fp2=fopen("E:\\张健业\\test4.pcm","wb");    /*输出pcm文件路径*/
+for(i=0;i<SIZE;i++)
+{fwrite(&h[i],2,1,fp2);
+}
+
+}
